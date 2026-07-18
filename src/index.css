@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Zilla+Slab:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* Brand Custom Colors */
+  --color-deep-navy: #0B1448;
+  --color-royal-blue: #2F6FEF;
+  --color-brand-indigo: #4A4BD6;
+  --color-brand-purple: #8B3FD9;
+  --color-brand-magenta: #D93AAE;
+  --color-hot-pink: #FF4E91;
+  --color-coral-orange: #FF6A3D;
+  --color-golden-orange: #FFA320;
+  --color-light-cyan: #1DB9E8;
+  --color-light-gray: #F5F6FA;
+
+  /* Brand Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-display: 'Zilla Slab', serif;
+}
+
+/* Base Styles using Tailwind theme variables */
+body {
+  font-family: var(--font-sans);
+  color: var(--color-deep-navy);
+  background-color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  color: var(--color-deep-navy);
+}
+
+/* Google Translate Widget UI Overrides */
+.skiptranslate {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+}
+
+#google_translate_element {
+  display: none !important;
+}
+
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+iframe.goog-te-banner-frame,
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
