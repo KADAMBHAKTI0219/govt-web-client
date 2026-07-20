@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import logoImg from '../assets/logo.jpeg';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut } from 'lucide-react';
+import { LogOut, User, Sparkles } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -11,7 +11,29 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const profileDropdownRef = useRef(null);
   const location = useLocation();
-  const forceSolid = location.pathname === '/categories' || location.pathname === '/participate' || location.pathname === '/about';
+  const forceSolid = location.pathname === '/categories' || location.pathname === '/participate' || location.pathname === '/my-profile' || location.pathname === '/about';
+
+  // State for logged in participant nomination session
+  const [participantProfile, setParticipantProfile] = useState(null);
+
+  const loadParticipantSession = () => {
+    const savedJSON = localStorage.getItem('participant_profile');
+    if (savedJSON) {
+      try {
+        setParticipantProfile(JSON.parse(savedJSON));
+      } catch (e) {
+        setParticipantProfile(null);
+      }
+    } else {
+      setParticipantProfile(null);
+    }
+  };
+
+  useEffect(() => {
+    loadParticipantSession();
+    window.addEventListener('participant-session-changed', loadParticipantSession);
+    return () => window.removeEventListener('participant-session-changed', loadParticipantSession);
+  }, []);
 
   // Scroll detection to toggle active transparency state
   useEffect(() => {
@@ -22,7 +44,6 @@ export default function Navbar() {
         setIsScrolled(false);
       }
     }
-    // Set initial scroll state in case page is refreshed halfway down
     handleScroll();
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -58,15 +79,11 @@ export default function Navbar() {
     : "bg-white/0 backdrop-blur-md my-2 border-b border-white/10 shadow-none";
 
   const dividerClass = (isScrolled || forceSolid) ? "bg-slate-200" : "bg-white/20";
-  const titleClass = (isScrolled || forceSolid) ? "text-deep-navy" : "text-white";
+  const titleClass = (isScrolled || forceSolid) ? "text-deep-navy" : "text-[#0B1448]";
   
   const linkClass = (isScrolled || forceSolid) 
     ? "text-deep-navy/80 hover:text-royal-blue after:bg-royal-blue" 
     : "text-white/80 hover:text-amber-400 after:bg-amber-400";
-
-  const searchBtnClass = (isScrolled || forceSolid) 
-    ? "bg-slate-50 hover:bg-slate-100 text-deep-navy/80 hover:text-royal-blue" 
-    : "bg-white/10 hover:bg-white/20 text-white/95 hover:text-amber-400";
 
   const profileBtnClass = (isScrolled || forceSolid)
     ? "bg-slate-50 hover:bg-slate-100 border-slate-200 text-deep-navy"
@@ -86,17 +103,16 @@ export default function Navbar() {
 
   return (
     <nav 
-      className={`w-full fixed top-0 left-0 z-40 select-none transition-all duration-300 ease-in-out ${navBgClass}`}
+      className={`w-full fixed top-0 left-0 z-30 select-none transition-all duration-300 ease-in-out ${navBgClass}`}
       style={{
         transform: isScrolled ? 'translateY(0px)' : 'translateY(37px)',
         willChange: 'transform, background-color'
       }}
     >
-      <div className=" px-4 py-3 flex items-center justify-between">
+      <div className="px-4 py-3 flex items-center justify-between">
         
         {/* Left Side: Logo & Titles */}
-        <div className="flex items-center gap-2 md:gap-3">
-          {/* Premium Gradient Ring Logo Wrapper */}
+        <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <div className="transition-all duration-300 shrink-0">
             <img 
               src={logoImg} 
@@ -106,7 +122,7 @@ export default function Navbar() {
           </div>
           <div className={`h-10 w-[1px] transition-colors duration-350 ${dividerClass}`} aria-hidden="true"></div>
           <div className="flex flex-col text-left">
-            <span className={`font-display font-extrabold text-[13px] sm:text-[14px] leading-tight tracking-wide transition-colors duration-350 ${titleClass}`}>
+            <span className={`font-display font-extrabold text-[13px] sm:text-[14px] leading-tight tracking-wide transition-colors duration-350 text-white ${titleClass}`}>
               STATE CREATOR <span className='block'> & INFLUENCER AWARDS</span>
             </span>
           </div>
@@ -127,16 +143,58 @@ export default function Navbar() {
 
         {/* Right Side Tools */}
         <div className="flex items-center gap-3">
-          {/* Search Icon */}
-          <button className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer hidden sm:flex ${searchBtnClass}`}>
-            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.3-4.3" />
-            </svg>
-          </button>
+          
+          {/* Active Participant Profile Dropdown (Replaces PARTICIPATE NOW when registered) */}
+          {participantProfile ? (
+            <div className="relative" ref={profileDropdownRef}>
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-all duration-300 cursor-pointer shadow-sm ${profileBtnClass}`}
+              >
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#0B1448] to-royal-blue flex items-center justify-center text-[10px] font-black uppercase text-amber-400 overflow-hidden shrink-0">
+                  {participantProfile.fullName ? participantProfile.fullName.charAt(0) : 'P'}
+                </div>
+                <span className="max-w-[100px] truncate">{participantProfile.fullName || 'My Profile'}</span>
+                <svg className="w-3 h-3 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-          {/* Login / User Profile Dropdown */}
-          {user ? (
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-48 rounded-xl bg-white shadow-xl border border-slate-100 py-1.5 z-50 text-slate-700 font-sans">
+                  <Link
+                    to="/my-profile"
+                    onClick={() => setProfileDropdownOpen(false)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors duration-150 text-xs font-black block text-[#0B1448]"
+                  >
+                    👤 My Profile & Status
+                  </Link>
+                  <Link
+                    to="/participate"
+                    onClick={() => setProfileDropdownOpen(false)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors duration-150 text-xs font-extrabold block text-slate-700"
+                  >
+                    ➕ Nominate Entry
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      localStorage.removeItem('participant_phone');
+                      localStorage.removeItem('participant_profile');
+                      setParticipantProfile(null);
+                      window.dispatchEvent(new Event('participant-session-changed'));
+                      navigate('/');
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors duration-150 text-xs font-extrabold flex items-center gap-1.5 text-rose-600 cursor-pointer border-t border-slate-100 mt-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign Out Profile
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : user ? (
+            /* System Admin/Auth User Dropdown */
             <div className="relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -179,6 +237,7 @@ export default function Navbar() {
               )}
             </div>
           ) : (
+            /* Public Unregistered Visitor PARTICIPATE NOW Button */
             <Link
               to="/categories"
               className="group relative overflow-hidden bg-white text-deep-navy border border-slate-200 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-md hover:shadow-hot-pink/10 active:scale-95 cursor-pointer hidden sm:block"
@@ -225,8 +284,7 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Participate button in mobile menu */}
-          {!user && (
+          {!user && !participantProfile && (
             <div className="pt-2 border-t border-slate-100/10">
               <Link
                 to="/categories"

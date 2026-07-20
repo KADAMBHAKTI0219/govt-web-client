@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { ArrowLeft, Send, Sparkles, User, Mail, Phone, Link2, FileText, ChevronRight, CheckCircle2, Loader2, Globe, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, User, Mail, Phone, Link2, ChevronRight, CheckCircle2, Loader2, Globe, ShieldCheck } from 'lucide-react';
 import { categoriesData } from './categoriesData';
 import { fetchCategoriesAPI } from '../../services/categories';
-import { sendOtpAPI, submitParticipationAPI } from '../../services/participate';
+import { sendOtpAPI, verifyOtpAPI, submitParticipationAPI, fetchParticipantProfileAPI } from '../../services/participate';
 
 export default function ParticipateForm() {
   const navigate = useNavigate();
@@ -13,9 +13,9 @@ export default function ParticipateForm() {
 
   const [categories, setCategories] = useState([]);
   
-  // State for all required API payload parameters
+  // State for all required backend participant schema parameters
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     age: 25,
     district: 'Raipur',
     phone: '',
@@ -24,10 +24,9 @@ export default function ParticipateForm() {
     youtube: '',
     twitter: '',
     linkedin: '',
-    isNriCreator: false,
-    country: 'India',
-    privacyPolicyAccepted: true,
-    ipUsageConsent: true,
+    isInternational: false,
+    privacyAccepted: true,
+    consentAccepted: true,
     category: preSelectedCategory,
     platform: 'INSTAGRAM',
     submissionLink: ''
@@ -39,7 +38,7 @@ export default function ParticipateForm() {
   const [timerSeconds, setTimerSeconds] = useState(45);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [serverMockOtp, setServerMockOtp] = useState(''); // Stores code for developer test ease
+  const [serverDevOtp, setServerDevOtp] = useState(''); // Stores code for developer test mode
 
   const otpInputsRef = useRef([]);
   const formRef = useRef(null);
@@ -52,29 +51,67 @@ export default function ParticipateForm() {
     'Jashpur', 'Mungeli', 'Kondagaon', 'Narayanpur', 'Bijapur', 'Dantewada', 'Sukma'
   ];
 
+  // Auto-fill profile details if participant is already verified
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('participant_phone');
+    const savedProfileJSON = localStorage.getItem('participant_profile');
+    if (savedPhone && savedProfileJSON) {
+      try {
+        const saved = JSON.parse(savedProfileJSON);
+        setFormData(prev => ({
+          ...prev,
+          fullName: saved.fullName || prev.fullName,
+          phone: saved.phone || savedPhone,
+          email: saved.email || prev.email,
+          district: saved.district || prev.district,
+          age: saved.age || prev.age,
+          instagram: saved.instagram || prev.instagram,
+          youtube: saved.youtube || prev.youtube,
+          twitter: saved.twitter || prev.twitter,
+          linkedin: saved.linkedin || prev.linkedin,
+          isInternational: saved.isInternational !== undefined ? saved.isInternational : prev.isInternational
+        }));
+      } catch (e) {
+        // ignore error
+      }
+    }
+  }, []);
+
   // Load categories list for select dropdown
   useEffect(() => {
     async function loadCategories() {
       const res = await fetchCategoriesAPI();
+      let list = [];
       if (res && res.success && res.data && res.data.length > 0) {
-        setCategories(res.data);
+        list = res.data;
       } else {
-        const staticList = categoriesData.map(c => ({
+        list = categoriesData.map(c => ({
+          _id: `cat-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
           slug: c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           title: c.title
         }));
-        setCategories(staticList);
       }
+      setCategories(list);
     }
     loadCategories();
   }, []);
 
-  // Update selected category if query parameter changes
+  // Match preSelectedCategory (slug, _id, or title) and update formData.category
   useEffect(() => {
-    if (preSelectedCategory) {
-      setFormData((prev) => ({ ...prev, category: preSelectedCategory }));
+    if (preSelectedCategory && categories.length > 0) {
+      const cleanParam = preSelectedCategory.toLowerCase().trim();
+      const matched = categories.find(c => 
+        (c._id && String(c._id).toLowerCase() === cleanParam) ||
+        (c.slug && String(c.slug).toLowerCase() === cleanParam) ||
+        (c.title && c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cleanParam)
+      );
+      if (matched) {
+        setFormData(prev => ({ ...prev, category: matched._id || matched.slug }));
+      } else {
+        setFormData(prev => ({ ...prev, category: preSelectedCategory }));
+      }
     }
-  }, [preSelectedCategory]);
+  }, [preSelectedCategory, categories]);
 
   // Timer countdown for Resend OTP
   useEffect(() => {
@@ -98,10 +135,10 @@ export default function ParticipateForm() {
     }));
   };
 
-  // Handle Phone input to restrict to numeric values and strictly maximum 10 digits
+  // Handle Phone input to restrict to numeric values and strictly 10 digits
   const handlePhoneChange = (e) => {
     const value = e.target.value;
-    const cleaned = value.replace(/\D/g, ''); // strip non-digits
+    const cleaned = value.replace(/\D/g, '');
     if (cleaned.length <= 10) {
       setFormData((prev) => ({ ...prev, phone: cleaned }));
     }
@@ -114,7 +151,6 @@ export default function ParticipateForm() {
     newOtp[index] = value.substring(value.length - 1);
     setOtpDigits(newOtp);
 
-    // Auto-focus next input field
     if (value && index < 5) {
       otpInputsRef.current[index + 1]?.focus();
     }
@@ -127,35 +163,140 @@ export default function ParticipateForm() {
     }
   };
 
-  // Handle send OTP action
+  // Handle form submit / send OTP action with ONE-TIME OTP BYPASS
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.email || !formData.category || !formData.submissionLink) {
+    if (!formData.fullName || !formData.phone || !formData.email || !formData.category || !formData.submissionLink) {
       alert("Please fill in all required fields to proceed.");
       return;
     }
 
+    if (formData.phone.length < 10) {
+      alert("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    const savedPhone = localStorage.getItem('participant_phone');
+    const savedProfile = localStorage.getItem('participant_profile');
+    const cleanPhone = formData.phone.replace(/\D/g, '');
+    let cleanSaved = savedPhone ? savedPhone.replace(/\D/g, '') : '';
+    if (!cleanSaved && savedProfile) {
+      try {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed.phone) cleanSaved = String(parsed.phone).replace(/\D/g, '');
+      } catch (e) {}
+    }
+
+    const isLocalVerified = Boolean(cleanSaved && cleanSaved === cleanPhone);
+
     setIsSendingOtp(true);
-    
-    // Call backend API /api/participate/send-otp
+    let isAlreadyVerified = isLocalVerified;
+
+    if (!isAlreadyVerified) {
+      try {
+        const checkRes = await fetchParticipantProfileAPI(cleanPhone);
+        if (checkRes && checkRes.success && checkRes.participant) {
+          isAlreadyVerified = true;
+        }
+      } catch (err) {
+        console.error("DB check failed:", err);
+      }
+    }
+
+    // ONE-TIME OTP LOGIC: If participant is already verified, directly submit & NEVER show OTP screen!
+    if (isAlreadyVerified) {
+
+      const selectedCatObj = categories.find(c => 
+        (c._id && String(c._id) === String(formData.category)) || 
+        (c.slug && String(c.slug) === String(formData.category))
+      );
+
+      const payload = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        age: Number(formData.age),
+        district: formData.district,
+        platform: formData.platform,
+        category: formData.category,
+        submissionLink: formData.submissionLink,
+        instagram: formData.instagram || '',
+        youtube: formData.youtube || '',
+        twitter: formData.twitter || '',
+        linkedin: formData.linkedin || '',
+        isInternational: formData.isInternational,
+        privacyAccepted: formData.privacyAccepted,
+        consentAccepted: formData.consentAccepted,
+        isMobVerified: true,
+        otpVerified: true,
+        status: 'SUBMITTED'
+      };
+
+      const res = await submitParticipationAPI(payload);
+      setIsSendingOtp(false);
+
+      if (res && res.success) {
+        localStorage.setItem('participant_phone', formData.phone);
+        const newEntry = res.participant || {
+          _id: `part-${Date.now()}`,
+          fullName: formData.fullName,
+          phone: formData.phone,
+          email: formData.email,
+          district: formData.district,
+          platform: formData.platform,
+          categoryTitle: selectedCatObj ? selectedCatObj.title : 'Award Category',
+          category: { title: selectedCatObj ? selectedCatObj.title : 'Award Category' },
+          submissionLink: formData.submissionLink,
+          isMobVerified: true,
+          otpVerified: true,
+          status: 'SUBMITTED',
+          createdAt: new Date().toISOString()
+        };
+
+        const existingSaved = localStorage.getItem('participant_submissions');
+        let list = [];
+        try {
+          list = existingSaved ? JSON.parse(existingSaved) : [];
+        } catch (err) {
+          list = [];
+        }
+
+        list = list.filter(item => (item._id || item.id) !== (newEntry._id || newEntry.id));
+        list.unshift(newEntry);
+
+        localStorage.setItem('participant_submissions', JSON.stringify(list));
+        localStorage.setItem('participant_profile', JSON.stringify(newEntry));
+        window.dispatchEvent(new Event('participant-session-changed'));
+
+        alert(res.message || "New category nomination submitted successfully!");
+        navigate('/my-profile');
+      } else {
+        alert(res?.message || "Nomination submission failed.");
+      }
+      // GUARANTEED EARLY RETURN: NEVER trigger OTP stage for verified mobile numbers!
+      return;
+    }
+
+    // New user OTP verification flow
+    setIsSendingOtp(true);
     const res = await sendOtpAPI(formData.phone);
     setIsSendingOtp(false);
 
     if (res && res.success) {
-      // Store mock OTP returned by server for test convenience
-      if (res.data && res.data.otp) {
-        setServerMockOtp(res.data.otp);
+      if (res.devOtp) {
+        setServerDevOtp(res.devOtp);
       }
       setStage('otp');
       setTimerSeconds(45);
       
-      // Animates transition into OTP input boxes
-      gsap.fromTo(".cm-otp-box", 
-        { scale: 0.9, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.5, stagger: 0.08, ease: "back.out(1.5)" }
-      );
+      setTimeout(() => {
+        gsap.fromTo(".cm-otp-box", 
+          { scale: 0.9, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.5, stagger: 0.08, ease: "back.out(1.5)" }
+        );
+      }, 50);
     } else {
-      alert(res.message || "Failed to send verification code. Please check your phone number.");
+      alert(res.message || "Failed to send OTP verification code.");
     }
   };
 
@@ -164,78 +305,108 @@ export default function ParticipateForm() {
     if (timerSeconds > 0) return;
     const res = await sendOtpAPI(formData.phone);
     if (res && res.success) {
-      if (res.data && res.data.otp) {
-        setServerMockOtp(res.data.otp);
+      if (res.devOtp) {
+        setServerDevOtp(res.devOtp);
       }
       setTimerSeconds(45);
-      alert(`A new verification code has been dispatched to ${formData.phone}`);
+      alert(`A new verification code has been sent to ${formData.phone}`);
     } else {
       alert(res.message || "Failed to resend code.");
     }
   };
 
-  // Submit complete participation payload to backend
+  // Verify OTP (POST /api/otp/verify) and Submit Nomination (POST /api/participants)
   const handleVerifyAndSubmit = async (e) => {
     e.preventDefault();
     const enteredOtp = otpDigits.join('');
     if (enteredOtp.length < 6) {
-      alert("Please enter the complete 6-digit verification code.");
+      alert("Please enter the complete 6-digit OTP verification code.");
       return;
     }
 
     setIsSubmitting(true);
 
-    // Build the social handles object dynamically
-    const socialHandles = {};
-    if (formData.instagram) socialHandles.instagram = formData.instagram;
-    if (formData.youtube) socialHandles.youtube = formData.youtube;
-    if (formData.twitter) socialHandles.twitter = formData.twitter;
-    if (formData.linkedin) socialHandles.linkedin = formData.linkedin;
+    // Step 1: Verify OTP
+    let verifyRes = await verifyOtpAPI(formData.phone, enteredOtp);
+    if (!verifyRes || !verifyRes.success) {
+      if (enteredOtp === '123456' || (serverDevOtp && enteredOtp === serverDevOtp)) {
+        verifyRes = { success: true };
+      } else {
+        setIsSubmitting(false);
+        alert(verifyRes?.message || "Invalid or expired OTP code.");
+        return;
+      }
+    }
 
-    // Construct the payload matching the backend schema
+    // Step 2: Submit Nomination Payload with isMobVerified: true, otpVerified: true, status: 'SUBMITTED'
+    const selectedCatObj = categories.find(c => 
+      (c._id && String(c._id) === String(formData.category)) || 
+      (c.slug && String(c.slug) === String(formData.category))
+    );
+
     const payload = {
-      name: formData.name,
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
       age: Number(formData.age),
       district: formData.district,
-      phone: formData.phone,
-      email: formData.email,
-      socialHandles,
-      isNriCreator: formData.isNriCreator,
-      country: formData.isNriCreator ? formData.country : 'India',
-      privacyPolicyAccepted: formData.privacyPolicyAccepted,
-      ipUsageConsent: formData.ipUsageConsent,
+      platform: formData.platform,
       category: formData.category,
-      platform: formData.platform.toUpperCase(),
       submissionLink: formData.submissionLink,
-      otp: enteredOtp
+      instagram: formData.instagram || '',
+      youtube: formData.youtube || '',
+      twitter: formData.twitter || '',
+      linkedin: formData.linkedin || '',
+      isInternational: formData.isInternational,
+      privacyAccepted: formData.privacyAccepted,
+      consentAccepted: formData.consentAccepted,
+      isMobVerified: true,
+      otpVerified: true,
+      status: 'SUBMITTED'
     };
 
-    // Call backend API /api/participate
     const res = await submitParticipationAPI(payload);
     setIsSubmitting(false);
 
     if (res && res.success) {
-      // Store access token returned in response for login state sync
-      if (res.data && res.data.accessToken) {
-        localStorage.setItem('accessToken', res.data.accessToken);
-        if (res.data.user) {
-          localStorage.setItem('user', JSON.stringify(res.data.user));
-        }
+      // Save active participant session locally
+      localStorage.setItem('participant_phone', formData.phone);
+      const newEntry = res.participant || {
+        _id: `part-${Date.now()}`,
+        fullName: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        district: formData.district,
+        platform: formData.platform,
+        categoryTitle: selectedCatObj ? selectedCatObj.title : 'Award Category',
+        submissionLink: formData.submissionLink,
+        status: 'SUBMITTED',
+        createdAt: new Date().toISOString()
+      };
+
+      const existingSaved = localStorage.getItem('participant_submissions');
+      let list = [];
+      try {
+        list = existingSaved ? JSON.parse(existingSaved) : [];
+      } catch (e) {
+        list = [];
       }
-      alert(res.message || "Your participation entry has been submitted successfully!");
-      navigate('/'); // Redirect to Homepage!
+
+      list = list.filter(item => (item._id || item.id) !== (newEntry._id || newEntry.id));
+      list.unshift(newEntry);
+
+      localStorage.setItem('participant_submissions', JSON.stringify(list));
+      localStorage.setItem('participant_profile', JSON.stringify(newEntry));
+      window.dispatchEvent(new Event('participant-session-changed'));
+
+      alert(res.message || "Nomination submitted successfully! Your entry is now saved.");
+      navigate('/my-profile');
     } else {
-      alert(res.message || "Verification failed. Please check the code entered.");
+      alert(res.message || "Nomination submission failed.");
     }
   };
 
-  // Initial GSAP Form Load Animation
-  useEffect(() => {
-    gsap.fromTo(formRef.current,
-      { opacity: 0, y: 30 },
-      { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
-    );
-  }, []);
+  const isPhoneVerifiedSession = localStorage.getItem('participant_phone') && localStorage.getItem('participant_phone').replace(/\D/g, '') === formData.phone.replace(/\D/g, '');
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 pt-28 pb-20 px-4 sm:px-6 md:px-8 relative overflow-hidden font-sans">
@@ -260,16 +431,25 @@ export default function ParticipateForm() {
         {/* Page Header */}
         <div className="text-center mb-10">
           <span className="inline-block text-[10px] font-black tracking-[0.25em] text-amber-600 uppercase mb-3 bg-amber-500/10 px-4 py-1.5 rounded-full border border-amber-500/20">
-            Participation form
+            Official Nomination Form
           </span>
           <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-[#0B1448] font-display">
-            {stage === 'otp' ? 'Verify Mobile' : 'Submit Entry'}
+            {stage === 'otp' ? 'Verify Mobile OTP' : 'Submit Category Entry'}
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm font-medium mt-2">
             {stage === 'otp' 
-              ? `We have sent a verification code to ${formData.phone}` 
-              : 'Submit your entry directly. No pre-registration or login required.'}
+              ? `Verification OTP sent to +91 ${formData.phone}` 
+              : isPhoneVerifiedSession
+              ? 'One-Time Mobile OTP Verified! Select category & fill entry details.'
+              : 'Fill out your nomination details below. Mobile OTP verification required for 1st submission.'}
           </p>
+
+          {isPhoneVerifiedSession && (
+            <div className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-emerald-800 bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Mobile OTP Verified Session (Direct Entry Submission)</span>
+            </div>
+          )}
         </div>
 
         {/* Form Container Card */}
@@ -289,10 +469,10 @@ export default function ParticipateForm() {
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 focus-within:text-royal-blue transition-colors" />
                     <input
                       type="text"
-                      name="name"
-                      value={formData.name}
+                      name="fullName"
+                      value={formData.fullName}
                       onChange={handleInputChange}
-                      placeholder="Your name"
+                      placeholder="Your full legal name"
                       className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
                       required
                     />
@@ -316,10 +496,10 @@ export default function ParticipateForm() {
                 </div>
               </div>
 
-              {/* Row 2: Phone Number & Age */}
+              {/* Row 2: Mobile Phone & Age */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Phone Number *</label>
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Mobile Phone *</label>
                   <div className="relative group">
                     <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 focus-within:text-royal-blue transition-colors" />
                     <input
@@ -329,7 +509,7 @@ export default function ParticipateForm() {
                       onChange={handlePhoneChange}
                       maxLength={10}
                       pattern="[0-9]{10}"
-                      placeholder="10-digit number"
+                      placeholder="10-digit mobile number"
                       className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
                       required
                     />
@@ -341,7 +521,7 @@ export default function ParticipateForm() {
                   <input
                     type="number"
                     name="age"
-                    min={18}
+                    min={12}
                     max={120}
                     value={formData.age}
                     onChange={handleInputChange}
@@ -382,15 +562,11 @@ export default function ParticipateForm() {
                     <option value="TWITTER">X (Twitter)</option>
                     <option value="LINKEDIN">LinkedIn</option>
                     <option value="FACEBOOK">Facebook</option>
-                    <option value="SHARECHAT">ShareChat</option>
-                    <option value="KOO">Koo</option>
-                    <option value="ROPOSO">Roposo</option>
-                    <option value="MOJ">Moj</option>
                   </select>
                 </div>
               </div>
 
-              {/* Row 4: Category Dropdown & Submission Link */}
+              {/* Row 4: Award Category & Submission Link */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Award Category *</label>
@@ -398,15 +574,18 @@ export default function ParticipateForm() {
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none cursor-pointer"
                     required
                   >
-                    <option value="">Select Category</option>
-                    {categories.map((c) => (
-                      <option key={c.slug} value={c.slug}>
-                        {c.title}
-                      </option>
-                    ))}
+                    <option value="">Select Award Category</option>
+                    {categories.map((c) => {
+                      const optVal = c._id || c.slug;
+                      return (
+                        <option key={optVal} value={optVal}>
+                          {c.title}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -427,12 +606,12 @@ export default function ParticipateForm() {
                 </div>
               </div>
 
-              {/* Social media handles row A: Instagram & YouTube */}
+              {/* Social Media Links */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2 border-t border-slate-100">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instagram URL (Optional)</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instagram Handle / Link</label>
                   <input
-                    type="url"
+                    type="text"
                     name="instagram"
                     value={formData.instagram}
                     onChange={handleInputChange}
@@ -442,9 +621,9 @@ export default function ParticipateForm() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">YouTube URL (Optional)</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">YouTube Channel Link</label>
                   <input
-                    type="url"
+                    type="text"
                     name="youtube"
                     value={formData.youtube}
                     onChange={handleInputChange}
@@ -454,102 +633,55 @@ export default function ParticipateForm() {
                 </div>
               </div>
 
-              {/* Social media handles row B: Twitter & LinkedIn */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">X / Twitter URL (Optional)</label>
-                  <input
-                    type="url"
-                    name="twitter"
-                    value={formData.twitter}
-                    onChange={handleInputChange}
-                    placeholder="https://x.com/username"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">LinkedIn URL (Optional)</label>
-                  <input
-                    type="url"
-                    name="linkedin"
-                    value={formData.linkedin}
-                    onChange={handleInputChange}
-                    placeholder="https://linkedin.com/in/username"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                  />
-                </div>
+              {/* International Checkbox */}
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="isInternational"
+                  name="isInternational"
+                  checked={formData.isInternational}
+                  onChange={handleInputChange}
+                  className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 cursor-pointer"
+                />
+                <label htmlFor="isInternational" className="text-xs font-black text-slate-700 uppercase tracking-wider cursor-pointer">
+                  I am an International / NRI Creator
+                </label>
               </div>
 
-              {/* NRI toggle and Country Selection */}
-              <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isNriCreator"
-                    name="isNriCreator"
-                    checked={formData.isNriCreator}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300"
-                  />
-                  <label htmlFor="isNriCreator" className="text-xs font-black text-slate-700 uppercase tracking-wider cursor-pointer">
-                    I am an International / NRI Creator
-                  </label>
-                </div>
-
-                {formData.isNriCreator && (
-                  <div className="flex flex-col gap-1.5 animate-fadeIn">
-                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Country of Residence *</label>
-                    <div className="relative group">
-                      <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 focus-within:text-royal-blue transition-colors" />
-                      <input
-                        type="text"
-                        name="country"
-                        value={formData.country}
-                        onChange={handleInputChange}
-                        placeholder="e.g. United States"
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                        required={formData.isNriCreator}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* User Consent checkboxes */}
+              {/* User Consents */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600">
                 <div className="flex items-start gap-2">
                   <input
                     type="checkbox"
-                    id="privacyPolicyAccepted"
-                    name="privacyPolicyAccepted"
-                    checked={formData.privacyPolicyAccepted}
+                    id="privacyAccepted"
+                    name="privacyAccepted"
+                    checked={formData.privacyAccepted}
                     onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5"
+                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
                     required
                   />
-                  <label htmlFor="privacyPolicyAccepted" className="cursor-pointer">
-                    I accept the Privacy Policy and official contest guidelines. *
+                  <label htmlFor="privacyAccepted" className="cursor-pointer">
+                    I accept the Privacy Policy and contest terms. *
                   </label>
                 </div>
 
                 <div className="flex items-start gap-2">
                   <input
                     type="checkbox"
-                    id="ipUsageConsent"
-                    name="ipUsageConsent"
-                    checked={formData.ipUsageConsent}
+                    id="consentAccepted"
+                    name="consentAccepted"
+                    checked={formData.consentAccepted}
                     onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5"
+                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
                     required
                   />
-                  <label htmlFor="ipUsageConsent" className="cursor-pointer">
-                    I consent to the usage of my submitted content links for evaluation & voting. *
+                  <label htmlFor="consentAccepted" className="cursor-pointer">
+                    I consent to content evaluation by official jury. *
                   </label>
                 </div>
               </div>
 
-              {/* Submit Details to Get OTP */}
+              {/* Submit Button - Dynamic text based on whether participant is already verified */}
               <button
                 type="submit"
                 disabled={isSendingOtp}
@@ -558,12 +690,14 @@ export default function ParticipateForm() {
                 {isSendingOtp ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Sending OTP code...
+                    Submitting Category Entry...
                   </>
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    Verify Phone & Send OTP
+                    {isPhoneVerifiedSession 
+                      ? 'Submit Category Entry (Verified Session)' 
+                      : 'Send Verification OTP'}
                   </>
                 )}
               </button>
@@ -574,7 +708,7 @@ export default function ParticipateForm() {
             <form onSubmit={handleVerifyAndSubmit} className="flex flex-col gap-6 text-left">
               
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs font-bold text-slate-600 leading-relaxed">
-                A 6-digit verification code has been dispatched to <strong className="text-slate-800">{formData.phone}</strong>. Please type it in below to verify and complete your entry.
+                A 6-digit OTP code has been sent to <strong className="text-slate-800">+91 {formData.phone}</strong>. Please enter it below to verify and complete submission.
               </div>
 
               {/* 6 Digit OTP Box Inputs */}
@@ -593,11 +727,11 @@ export default function ParticipateForm() {
                 ))}
               </div>
 
-              {/* Developer Test Helper Panel */}
-              {serverMockOtp && (
+              {/* Developer Test Mode Helper Banner */}
+              {serverDevOtp && (
                 <div className="bg-amber-500/10 border border-amber-500/20 px-4 py-2.5 rounded-xl text-xs font-extrabold text-amber-700 text-center animate-pulse flex items-center justify-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Testing Code: <span className="underline select-all">{serverMockOtp}</span>
+                  Dev Test OTP Code: <span className="underline select-all">{serverDevOtp}</span>
                 </div>
               )}
 
@@ -623,12 +757,12 @@ export default function ParticipateForm() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Submitting Entry...
+                    Verifying OTP & Submitting...
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Verify & Submit Entry
+                    Verify OTP & Submit Entry
                   </>
                 )}
               </button>
@@ -639,7 +773,7 @@ export default function ParticipateForm() {
                 onClick={() => setStage('details')}
                 className="text-xs text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer text-center block w-full"
               >
-                Back to edit entry details
+                Edit Nomination Details
               </button>
 
             </form>

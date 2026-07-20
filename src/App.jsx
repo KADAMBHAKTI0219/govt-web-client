@@ -6,6 +6,7 @@ import Navbar from './layout/Navbar'
 import AppRoutes from './routes/Routes'
 import { useLocation } from 'react-router-dom'
 import { LanguageProvider } from './context/LanguageContext'
+import { AdminProvider } from './context/AdminContext'
 import CreatorBot from './components/ui/CreatorBot'
 
 function App() {
@@ -25,16 +26,19 @@ function App() {
 
   const isDashboard = location.pathname.startsWith('/dashboard');
   const isAuth = location.pathname === '/login' || location.pathname === '/register';
+  const isAdmin = location.pathname.startsWith('/admin');
 
   return (
     <LanguageProvider>
-      {!isDashboard && !isAuth && <Header/>}
-      {!isDashboard && !isAuth && <Navbar/>}
-      <AppRoutes />
-      {!isDashboard && !isAuth && <Footer/>}
-      
-      {/* Global Interactive Responsive 3D Mascot Guide */}
-      {!isDashboard && !isAuth && <CreatorBot />}
+      <AdminProvider>
+        {!isDashboard && !isAuth && !isAdmin && <Header/>}
+        {!isDashboard && !isAuth && !isAdmin && <Navbar/>}
+        <AppRoutes />
+        {!isDashboard && !isAuth && !isAdmin && <Footer/>}
+        
+        {/* Global Interactive Responsive 3D Mascot Guide */}
+        {!isDashboard && !isAuth && !isAdmin && <CreatorBot />}
+      </AdminProvider>
     </LanguageProvider>
   )
 }
