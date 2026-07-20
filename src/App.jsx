@@ -9,6 +9,8 @@ import { LanguageProvider } from './context/LanguageContext'
 import { AdminProvider } from './context/AdminContext'
 import CreatorBot from './components/ui/CreatorBot'
 
+import { Toaster } from 'react-hot-toast'
+
 function App() {
   const location = useLocation();
   const { pathname, hash } = location;
@@ -21,6 +23,8 @@ function App() {
           element.scrollIntoView({ behavior: "smooth" });
         }, 120);
       }
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }
   }, [pathname, hash]);
 
@@ -31,6 +35,33 @@ function App() {
   return (
     <LanguageProvider>
       <AdminProvider>
+        <Toaster 
+          position="top-right" 
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#0B1448',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+            },
+            success: {
+              iconTheme: {
+                primary: '#10B981',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
         {!isDashboard && !isAuth && !isAdmin && <Header/>}
         {!isDashboard && !isAuth && !isAdmin && <Navbar/>}
         <AppRoutes />

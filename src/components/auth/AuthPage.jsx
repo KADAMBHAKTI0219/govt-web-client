@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { gsap } from "gsap";
 import { Eye, EyeOff, Sparkles, User, Mail, Lock, Phone, ArrowLeft, ShieldAlert, CheckCircle2 } from "lucide-react";
+import toast from "react-hot-toast";
 import loginVdo from "../../assets/vdo/login.mp4";
 import registerVdo from "../../assets/vdo/register.mp4";
 import { useAuth } from "../../context/AuthContext";
@@ -90,7 +91,7 @@ export default function AuthPage({ mode = "login" }) {
   const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.email) {
-      alert("Please fill in Name, Phone, and Email to register.");
+      toast.error("Please fill in Name, Phone, and Email to register.");
       return;
     }
     setIsSendingOtp(true);
@@ -99,6 +100,7 @@ export default function AuthPage({ mode = "login" }) {
       setIsSendingOtp(false);
       setRegStage('otp');
       setTimerSeconds(45);
+      toast.success(`Verification code sent to +91 ${formData.phone}`);
       // Animates transition into OTP input boxes
       gsap.fromTo(".cm-otp-box", 
         { scale: 0.9, opacity: 0 },
@@ -111,7 +113,7 @@ export default function AuthPage({ mode = "login" }) {
   const handleResendOtp = () => {
     if (timerSeconds > 0) return;
     setTimerSeconds(45);
-    alert(`A new 6-digit verification code has been sent to ${formData.phone}`);
+    toast.success(`A new 6-digit verification code has been sent to ${formData.phone}`);
   };
 
   // Handle final registration after OTP verification
@@ -119,7 +121,7 @@ export default function AuthPage({ mode = "login" }) {
     e.preventDefault();
     const enteredOtp = otpDigits.join('');
     if (enteredOtp.length < 6) {
-      alert("Please enter the complete 6-digit verification code.");
+      toast.error("Please enter the complete 6-digit verification code.");
       return;
     }
 
@@ -136,10 +138,10 @@ export default function AuthPage({ mode = "login" }) {
 
       setIsVerifying(false);
       if (result.success) {
-        alert("Mobile verified and registered successfully!");
+        toast.success("Mobile verified and registered successfully!");
         navigate("/"); // Redirect to Homepage as requested!
       } else {
-        alert(result.message || "Registration failed. Please try again.");
+        toast.error(result.message || "Registration failed. Please try again.");
       }
     }, 1500);
   };
@@ -149,9 +151,10 @@ export default function AuthPage({ mode = "login" }) {
     e.preventDefault();
     const result = await login(formData.email, formData.password);
     if (result.success) {
+      toast.success("Welcome back! Login successful.");
       navigate("/dashboard");
     } else {
-      alert(result.message);
+      toast.error(result.message || "Invalid credentials.");
     }
   };
 
@@ -160,7 +163,7 @@ export default function AuthPage({ mode = "login" }) {
   };
 
   const handleWhatsAppAuth = () => {
-    alert("WhatsApp Authentication is currently in beta. Please use Google or Email to sign in!");
+    toast.error("WhatsApp Authentication is currently in beta. Please use Google or Email to sign in!");
   };
 
   // GSAP Animations on Mount

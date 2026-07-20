@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { gsap } from 'gsap';
-import { ArrowLeft, Send, Sparkles, User, Mail, Phone, Link2, ChevronRight, CheckCircle2, Loader2, Globe, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, User, Mail, Phone, Link2, ChevronRight, CheckCircle2, Loader2, Globe, ShieldCheck, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { categoriesData } from './categoriesData';
 import { fetchCategoriesAPI } from '../../services/categories';
 import { sendOtpAPI, verifyOtpAPI, submitParticipationAPI, fetchParticipantProfileAPI } from '../../services/participate';
@@ -13,6 +14,9 @@ export default function ParticipateForm() {
 
   const [categories, setCategories] = useState([]);
   
+  // Validation errors state
+  const [errors, setErrors] = useState({});
+
   // State for all required backend participant schema parameters
   const [formData, setFormData] = useState({
     fullName: '',
@@ -48,7 +52,9 @@ export default function ParticipateForm() {
     'Raipur', 'Bilaspur', 'Durg', 'Bastar', 'Rajnandgaon', 'Korba', 'Raigarh', 
     'Janjgir-Champa', 'Surguja', 'Mahasamund', 'Dhamtari', 'Kanker', 'Kabirdham',
     'Bemetara', 'Balod', 'Baloda Bazar', 'Gariaband', 'Balrampur', 'Surajpur',
-    'Jashpur', 'Mungeli', 'Kondagaon', 'Narayanpur', 'Bijapur', 'Dantewada', 'Sukma'
+    'Jashpur', 'Koriya', 'Mungeli', 'Sukma', 'Kondagaon', 'Narayanpur', 'Bijapur',
+    'Dantewada', 'Gaurela-Pendra-Marwahi', 'Khairagarh-Chhuikhadan-Gandai',
+    'Mohla-Manpur-Ambagarh Chowk', 'Sarangarh-Bilaigarh', 'Sakti'
   ];
 
   // Auto-fill profile details if participant is already verified
@@ -77,43 +83,33 @@ export default function ParticipateForm() {
     }
   }, []);
 
-  // Load categories list for select dropdown
+  // Load backend categories or fallback to local categoriesData
   useEffect(() => {
-    async function loadCategories() {
+    const loadCategories = async () => {
       const res = await fetchCategoriesAPI();
-      let list = [];
-      if (res && res.success && res.data && res.data.length > 0) {
-        list = res.data;
+      if (res && res.success && res.categories && res.categories.length > 0) {
+        setCategories(res.categories);
       } else {
-        list = categoriesData.map(c => ({
+        const formatted = categoriesData.map((c) => ({
           _id: `cat-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          title: c.title,
           slug: c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          title: c.title
+          stream: c.stream
         }));
+        setCategories(formatted);
       }
-      setCategories(list);
-    }
+    };
     loadCategories();
   }, []);
 
-  // Match preSelectedCategory (slug, _id, or title) and update formData.category
+  // Update category when query param changes
   useEffect(() => {
-    if (preSelectedCategory && categories.length > 0) {
-      const cleanParam = preSelectedCategory.toLowerCase().trim();
-      const matched = categories.find(c => 
-        (c._id && String(c._id).toLowerCase() === cleanParam) ||
-        (c.slug && String(c.slug).toLowerCase() === cleanParam) ||
-        (c.title && c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cleanParam)
-      );
-      if (matched) {
-        setFormData(prev => ({ ...prev, category: matched._id || matched.slug }));
-      } else {
-        setFormData(prev => ({ ...prev, category: preSelectedCategory }));
-      }
+    if (preSelectedCategory) {
+      setFormData((prev) => ({ ...prev, category: preSelectedCategory }));
     }
-  }, [preSelectedCategory, categories]);
+  }, [preSelectedCategory]);
 
-  // Timer countdown for Resend OTP
+  // Timer countdown for resend OTP
   useEffect(() => {
     let interval = null;
     if (stage === 'otp' && timerSeconds > 0) {
@@ -133,6 +129,9 @@ export default function ParticipateForm() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
   };
 
   // Handle Phone input to restrict to numeric values and strictly 10 digits
@@ -141,7 +140,59 @@ export default function ParticipateForm() {
     const cleaned = value.replace(/\D/g, '');
     if (cleaned.length <= 10) {
       setFormData((prev) => ({ ...prev, phone: cleaned }));
+      if (errors.phone) {
+        setErrors((prev) => ({ ...prev, phone: '' }));
+      }
     }
+  };
+
+  // Comprehensive Form Validation with focus target
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.fullName || !formData.fullName.trim()) {
+      newErrors.fullName = 'Full legal name is required.';
+    }
+    if (!formData.email || !formData.email.trim()) {
+      newErrors.email = 'Email address is required.';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address.';
+    }
+    if (!formData.phone || !formData.phone.trim()) {
+      newErrors.phone = 'Mobile phone number is required.';
+    } else if (formData.phone.replace(/\D/g, '').length !== 10) {
+      newErrors.phone = 'Mobile number must be exactly 10 digits.';
+    }
+    if (!formData.category || String(formData.category).trim() === '' || String(formData.category).toLowerCase().includes('select')) {
+      newErrors.category = 'Please select an award category.';
+    }
+    if (!formData.submissionLink || !formData.submissionLink.trim()) {
+      newErrors.submissionLink = 'Content submission link is required.';
+    } else if (!/^https?:\/\//i.test(formData.submissionLink.trim())) {
+      newErrors.submissionLink = 'Submission link must start with http:// or https://';
+    }
+    if (!formData.privacyAccepted) {
+      newErrors.privacyAccepted = 'You must accept the Privacy Policy and terms.';
+    }
+    if (!formData.consentAccepted) {
+      newErrors.consentAccepted = 'Consent for jury evaluation is required.';
+    }
+
+    setErrors(newErrors);
+
+    const firstKey = Object.keys(newErrors)[0];
+    if (firstKey) {
+      toast.error('Please fix the highlighted errors in red before submitting.');
+      setTimeout(() => {
+        const el = document.getElementsByName(firstKey)[0] || document.getElementById(firstKey);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+      }, 50);
+      return false;
+    }
+    return true;
   };
 
   // Handle OTP digit changes
@@ -166,13 +217,8 @@ export default function ParticipateForm() {
   // Handle form submit / send OTP action with ONE-TIME OTP BYPASS
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.fullName || !formData.phone || !formData.email || !formData.category || !formData.submissionLink) {
-      alert("Please fill in all required fields to proceed.");
-      return;
-    }
 
-    if (formData.phone.length < 10) {
-      alert("Please enter a valid 10-digit phone number.");
+    if (!validateForm()) {
       return;
     }
 
@@ -268,10 +314,10 @@ export default function ParticipateForm() {
         localStorage.setItem('participant_profile', JSON.stringify(newEntry));
         window.dispatchEvent(new Event('participant-session-changed'));
 
-        alert(res.message || "New category nomination submitted successfully!");
+        toast.success(res.message || "New category nomination submitted successfully!");
         navigate('/my-profile');
       } else {
-        alert(res?.message || "Nomination submission failed.");
+        toast.error(res?.message || "Nomination submission failed.");
       }
       // GUARANTEED EARLY RETURN: NEVER trigger OTP stage for verified mobile numbers!
       return;
@@ -288,6 +334,7 @@ export default function ParticipateForm() {
       }
       setStage('otp');
       setTimerSeconds(45);
+      toast.success(`Verification OTP sent to +91 ${formData.phone}`);
       
       setTimeout(() => {
         gsap.fromTo(".cm-otp-box", 
@@ -296,7 +343,7 @@ export default function ParticipateForm() {
         );
       }, 50);
     } else {
-      alert(res.message || "Failed to send OTP verification code.");
+      toast.error(res.message || "Failed to send OTP verification code.");
     }
   };
 
@@ -309,9 +356,9 @@ export default function ParticipateForm() {
         setServerDevOtp(res.devOtp);
       }
       setTimerSeconds(45);
-      alert(`A new verification code has been sent to ${formData.phone}`);
+      toast.success(`A new verification code has been sent to ${formData.phone}`);
     } else {
-      alert(res.message || "Failed to resend code.");
+      toast.error(res.message || "Failed to resend code.");
     }
   };
 
@@ -320,7 +367,7 @@ export default function ParticipateForm() {
     e.preventDefault();
     const enteredOtp = otpDigits.join('');
     if (enteredOtp.length < 6) {
-      alert("Please enter the complete 6-digit OTP verification code.");
+      toast.error("Please enter the complete 6-digit OTP verification code.");
       return;
     }
 
@@ -333,7 +380,7 @@ export default function ParticipateForm() {
         verifyRes = { success: true };
       } else {
         setIsSubmitting(false);
-        alert(verifyRes?.message || "Invalid or expired OTP code.");
+        toast.error(verifyRes?.message || "Invalid or expired OTP code.");
         return;
       }
     }
@@ -459,7 +506,7 @@ export default function ParticipateForm() {
         >
           {stage === 'details' ? (
             /* ================= DETAILS ENTRY FORM ================= */
-            <form onSubmit={handleSendOtp} className="flex flex-col gap-6 text-left">
+            <form onSubmit={handleSendOtp} noValidate className="flex flex-col gap-6 text-left">
               
               {/* Row 1: Full Name & Email Address */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -473,10 +520,18 @@ export default function ParticipateForm() {
                       value={formData.fullName}
                       onChange={handleInputChange}
                       placeholder="Your full legal name"
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                      required
+                      className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none ${
+                        errors.fullName 
+                          ? 'border-rose-500 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400 focus:border-rose-500' 
+                          : 'border-slate-200 focus:border-royal-blue/30 focus:bg-white'
+                      }`}
                     />
                   </div>
+                  {errors.fullName && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-1 block flex items-center gap-1">
+                      ⚠️ {errors.fullName}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -489,10 +544,18 @@ export default function ParticipateForm() {
                       value={formData.email}
                       onChange={handleInputChange}
                       placeholder="name@example.com"
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                      required
+                      className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none ${
+                        errors.email 
+                          ? 'border-rose-500 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400 focus:border-rose-500' 
+                          : 'border-slate-200 focus:border-royal-blue/30 focus:bg-white'
+                      }`}
                     />
                   </div>
+                  {errors.email && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-1 block flex items-center gap-1">
+                      ⚠️ {errors.email}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -508,12 +571,19 @@ export default function ParticipateForm() {
                       value={formData.phone}
                       onChange={handlePhoneChange}
                       maxLength={10}
-                      pattern="[0-9]{10}"
                       placeholder="10-digit mobile number"
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                      required
+                      className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none ${
+                        errors.phone 
+                          ? 'border-rose-500 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400 focus:border-rose-500' 
+                          : 'border-slate-200 focus:border-royal-blue/30 focus:bg-white'
+                      }`}
                     />
                   </div>
+                  {errors.phone && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-1 block flex items-center gap-1">
+                      ⚠️ {errors.phone}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -526,7 +596,6 @@ export default function ParticipateForm() {
                     value={formData.age}
                     onChange={handleInputChange}
                     className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none"
-                    required
                   />
                 </div>
               </div>
@@ -540,7 +609,6 @@ export default function ParticipateForm() {
                     value={formData.district}
                     onChange={handleInputChange}
                     className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none"
-                    required
                   >
                     {cgDistricts.map((d) => (
                       <option key={d} value={d}>{d}</option>
@@ -555,7 +623,6 @@ export default function ParticipateForm() {
                     value={formData.platform}
                     onChange={handleInputChange}
                     className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none"
-                    required
                   >
                     <option value="INSTAGRAM">Instagram</option>
                     <option value="YOUTUBE">YouTube</option>
@@ -574,8 +641,11 @@ export default function ParticipateForm() {
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none cursor-pointer"
-                    required
+                    className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none transition-all outline-none cursor-pointer ${
+                      errors.category 
+                        ? 'border-rose-500 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400 focus:border-rose-500' 
+                        : 'border-slate-200 focus:border-royal-blue/30 focus:bg-white'
+                    }`}
                   >
                     <option value="">Select Award Category</option>
                     {categories.map((c) => {
@@ -587,6 +657,11 @@ export default function ParticipateForm() {
                       );
                     })}
                   </select>
+                  {errors.category && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-1 block flex items-center gap-1">
+                      ⚠️ {errors.category}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -599,10 +674,18 @@ export default function ParticipateForm() {
                       value={formData.submissionLink}
                       onChange={handleInputChange}
                       placeholder="https://instagram.com/p/..."
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none"
-                      required
+                      className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none transition-all outline-none ${
+                        errors.submissionLink 
+                          ? 'border-rose-500 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400 focus:border-rose-500' 
+                          : 'border-slate-200 focus:border-royal-blue/30 focus:bg-white'
+                      }`}
                     />
                   </div>
+                  {errors.submissionLink && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-1 block flex items-center gap-1">
+                      ⚠️ {errors.submissionLink}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -650,34 +733,46 @@ export default function ParticipateForm() {
 
               {/* User Consents */}
               <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 text-xs font-semibold text-slate-600">
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    id="privacyAccepted"
-                    name="privacyAccepted"
-                    checked={formData.privacyAccepted}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
-                    required
-                  />
-                  <label htmlFor="privacyAccepted" className="cursor-pointer">
-                    I accept the Privacy Policy and contest terms. *
-                  </label>
+                <div>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="privacyAccepted"
+                      name="privacyAccepted"
+                      checked={formData.privacyAccepted}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
+                    />
+                    <label htmlFor="privacyAccepted" className={`cursor-pointer ${errors.privacyAccepted ? 'text-rose-600 font-bold' : ''}`}>
+                      I accept the Privacy Policy and contest terms. *
+                    </label>
+                  </div>
+                  {errors.privacyAccepted && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-0.5 ml-6 block">
+                      ⚠️ {errors.privacyAccepted}
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    id="consentAccepted"
-                    name="consentAccepted"
-                    checked={formData.consentAccepted}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
-                    required
-                  />
-                  <label htmlFor="consentAccepted" className="cursor-pointer">
-                    I consent to content evaluation by official jury. *
-                  </label>
+                <div>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="consentAccepted"
+                      name="consentAccepted"
+                      checked={formData.consentAccepted}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 rounded text-royal-blue focus:ring-royal-blue/30 border-slate-300 mt-0.5 cursor-pointer"
+                    />
+                    <label htmlFor="consentAccepted" className={`cursor-pointer ${errors.consentAccepted ? 'text-rose-600 font-bold' : ''}`}>
+                      I consent to content evaluation by official jury. *
+                    </label>
+                  </div>
+                  {errors.consentAccepted && (
+                    <span className="text-[11px] font-bold text-rose-500 mt-0.5 ml-6 block">
+                      ⚠️ {errors.consentAccepted}
+                    </span>
+                  )}
                 </div>
               </div>
 

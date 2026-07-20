@@ -5,6 +5,7 @@ import {
   User, ShieldCheck, CheckCircle2, Clock, FileCheck, ExternalLink, Link2, 
   Phone, Mail, MapPin, Award, Sparkles, ArrowLeft, Loader2, LogOut, PlusCircle, Eye, X, Globe 
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { fetchParticipantProfileAPI, sendOtpAPI, verifyOtpAPI } from '../../services/participate';
 import { categoriesData } from './categoriesData';
 
@@ -116,7 +117,7 @@ export default function MyProfile() {
     e.preventDefault();
     const cleanPhone = loginPhone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
-      alert("Please enter a valid 10-digit mobile number.");
+      toast.error("Please enter a valid 10-digit mobile number.");
       return;
     }
 
@@ -127,8 +128,9 @@ export default function MyProfile() {
     if (res && res.success) {
       if (res.devOtp) setServerDevOtp(res.devOtp);
       setLoginStage('otp');
+      toast.success(`Verification OTP sent to +91 ${cleanPhone}`);
     } else {
-      alert(res.message || "Failed to send verification OTP.");
+      toast.error(res.message || "Failed to send verification OTP.");
     }
   };
 
@@ -137,7 +139,7 @@ export default function MyProfile() {
     e.preventDefault();
     const cleanPhone = loginPhone.replace(/\D/g, '');
     if (loginOtp.length < 6) {
-      alert("Please enter the 6-digit verification code.");
+      toast.error("Please enter the 6-digit verification code.");
       return;
     }
 
@@ -145,7 +147,7 @@ export default function MyProfile() {
     const verifyRes = await verifyOtpAPI(cleanPhone, loginOtp);
     if (!verifyRes || !verifyRes.success) {
       setIsLoggingIn(false);
-      alert(verifyRes?.message || "Invalid OTP verification code.");
+      toast.error(verifyRes?.message || "Invalid OTP verification code.");
       return;
     }
 
@@ -159,9 +161,10 @@ export default function MyProfile() {
       if (profileData) {
         localStorage.setItem('participant_profile', JSON.stringify(profileData));
       }
+      toast.success("Login successful! Welcome back.");
       window.dispatchEvent(new Event('participant-session-changed'));
     } else {
-      alert("No participant profile found for this mobile number. Please register your entry.");
+      toast.error("No participant profile found for this mobile number. Please register your entry.");
       navigate('/participate');
     }
   };
@@ -173,6 +176,7 @@ export default function MyProfile() {
       localStorage.removeItem('participant_profile');
       localStorage.removeItem('participant_submissions');
       setSubmissionsList([]);
+      toast.success("Signed out successfully.");
       window.dispatchEvent(new Event('participant-session-changed'));
     }
   };
