@@ -87,8 +87,8 @@ export default function ParticipateForm() {
   useEffect(() => {
     const loadCategories = async () => {
       const res = await fetchCategoriesAPI();
-      if (res && res.success && res.categories && res.categories.length > 0) {
-        setCategories(res.categories);
+      if (res && res.success && res.data && res.data.length > 0) {
+        setCategories(res.data);
       } else {
         const formatted = categoriesData.map((c) => ({
           _id: `cat-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
@@ -102,12 +102,23 @@ export default function ParticipateForm() {
     loadCategories();
   }, []);
 
-  // Update category when query param changes
+  // Match preSelectedCategory (slug, _id, or title) and update formData.category
   useEffect(() => {
-    if (preSelectedCategory) {
-      setFormData((prev) => ({ ...prev, category: preSelectedCategory }));
+    if (preSelectedCategory && categories.length > 0) {
+      const cleanParam = preSelectedCategory.toLowerCase().trim();
+      const matched = categories.find(c => 
+        (c._id && String(c._id).toLowerCase() === cleanParam) ||
+        (c.slug && String(c.slug).toLowerCase() === cleanParam) ||
+        (c.title && c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cleanParam) ||
+        (c.title && `cat-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` === cleanParam)
+      );
+      if (matched) {
+        setFormData(prev => ({ ...prev, category: matched._id || matched.slug || matched.title }));
+      } else {
+        setFormData(prev => ({ ...prev, category: preSelectedCategory }));
+      }
     }
-  }, [preSelectedCategory]);
+  }, [preSelectedCategory, categories]);
 
   // Timer countdown for resend OTP
   useEffect(() => {
@@ -121,6 +132,18 @@ export default function ParticipateForm() {
     }
     return () => clearInterval(interval);
   }, [stage, timerSeconds]);
+
+  // Focus first OTP field and scroll form into view when stage transitions to 'otp'
+  useEffect(() => {
+    if (stage === 'otp') {
+      setTimeout(() => {
+        otpInputsRef.current[0]?.focus();
+        if (formRef.current) {
+          formRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 120);
+    }
+  }, [stage]);
 
   // Handle Input Changes
   const handleInputChange = (e) => {
@@ -446,10 +469,10 @@ export default function ParticipateForm() {
       localStorage.setItem('participant_profile', JSON.stringify(newEntry));
       window.dispatchEvent(new Event('participant-session-changed'));
 
-      alert(res.message || "Nomination submitted successfully! Your entry is now saved.");
+      toast.success(res.message || "Nomination submitted successfully! Your entry is now saved.");
       navigate('/my-profile');
     } else {
-      alert(res.message || "Nomination submission failed.");
+      toast.error(res?.message || "Nomination submission failed.");
     }
   };
 

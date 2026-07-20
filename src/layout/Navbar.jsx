@@ -79,7 +79,7 @@ export default function Navbar() {
     : "bg-white/0 backdrop-blur-md my-2 border-b border-white/10 shadow-none";
 
   const dividerClass = (isScrolled || forceSolid) ? "bg-slate-200" : "bg-white/20";
-  const titleClass = (isScrolled || forceSolid) ? "text-deep-navy" : "text-[#0B1448]";
+  const titleClass = (isScrolled || forceSolid) ? "text-[#0B1448]" : "text-white";
   
   const linkClass = (isScrolled || forceSolid) 
     ? "text-deep-navy/80 hover:text-royal-blue after:bg-royal-blue" 
@@ -122,7 +122,7 @@ export default function Navbar() {
           </div>
           <div className={`h-10 w-[1px] transition-colors duration-350 ${dividerClass}`} aria-hidden="true"></div>
           <div className="flex flex-col text-left">
-            <span className={`font-display font-extrabold text-[13px] sm:text-[14px] leading-tight tracking-wide transition-colors duration-350 text-white ${titleClass}`}>
+            <span className={`font-display font-extrabold text-[13px] sm:text-[14px] leading-tight tracking-wide transition-colors duration-350 ${titleClass}`}>
               STATE CREATOR <span className='block'> & INFLUENCER AWARDS</span>
             </span>
           </div>
