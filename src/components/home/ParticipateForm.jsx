@@ -825,12 +825,12 @@ export default function ParticipateForm() {
             /* ================= OTP VERIFICATION FORM ================= */
             <form onSubmit={handleVerifyAndSubmit} className="flex flex-col gap-6 text-left">
               
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs font-bold text-slate-600 leading-relaxed">
-                A 6-digit OTP code has been sent to <strong className="text-slate-800">+91 {formData.phone}</strong>. Please enter it below to verify and complete submission.
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs font-bold text-slate-600 leading-relaxed break-words">
+                A 6-digit OTP code has been sent to <strong className="text-slate-800 inline-block whitespace-nowrap">+91 {formData.phone}</strong>. Please enter it below to verify and complete submission.
               </div>
 
               {/* 6 Digit OTP Box Inputs */}
-              <div className="flex justify-between items-center gap-2 sm:gap-3 py-1">
+              <div className="flex justify-center items-center gap-1 sm:gap-3 py-1">
                 {otpDigits.map((digit, idx) => (
                   <input
                     key={idx}
@@ -840,7 +840,7 @@ export default function ParticipateForm() {
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    className="cm-otp-box w-12 h-14 bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-xl text-center font-display font-black text-xl text-[#0B1448] focus:outline-none transition-all"
+                    className="cm-otp-box w-9 h-9 sm:w-12 sm:h-14 bg-slate-50 border border-slate-200 focus:border-royal-blue/30 focus:bg-white rounded-lg sm:rounded-xl text-center font-display font-black text-sm sm:text-xl text-[#0B1448] focus:outline-none transition-all"
                   />
                 ))}
               </div>

@@ -97,6 +97,26 @@ export default function Navbar() {
     ? "bg-white/95 border-t border-slate-100 text-deep-navy shadow-lg"
     : "bg-deep-navy/95 border-t border-white/10 text-white shadow-lg";
 
+  const drawerProfileBoxClass = (isScrolled || forceSolid)
+    ? "bg-slate-50 border border-slate-200 text-slate-700"
+    : "bg-white/5 border border-white/10 text-white";
+
+  const drawerProfileTextClass = (isScrolled || forceSolid)
+    ? "text-slate-800"
+    : "text-white";
+
+  const drawerProfileSubtextClass = (isScrolled || forceSolid)
+    ? "text-slate-500"
+    : "text-white/60";
+
+  const drawerProfileLinkClass = (isScrolled || forceSolid)
+    ? "bg-white hover:bg-slate-100 border border-slate-200 text-deep-navy"
+    : "bg-white/10 hover:bg-white/20 text-white";
+
+  const drawerProfileSignoutClass = (isScrolled || forceSolid)
+    ? "bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100"
+    : "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300";
+
   const drawerLinkClass = (isScrolled || forceSolid)
     ? "text-deep-navy/80 hover:text-royal-blue hover:bg-slate-50"
     : "text-white/80 hover:text-amber-400 hover:bg-white/5";
@@ -146,7 +166,7 @@ export default function Navbar() {
           
           {/* Active Participant Profile Dropdown (Replaces PARTICIPATE NOW when registered) */}
           {participantProfile ? (
-            <div className="relative" ref={profileDropdownRef}>
+            <div className="hidden lg:block relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-all duration-300 cursor-pointer shadow-sm ${profileBtnClass}`}
@@ -195,7 +215,7 @@ export default function Navbar() {
             </div>
           ) : user ? (
             /* System Admin/Auth User Dropdown */
-            <div className="relative" ref={profileDropdownRef}>
+            <div className="hidden lg:block relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-all duration-300 cursor-pointer shadow-sm ${profileBtnClass}`}
@@ -271,6 +291,91 @@ export default function Navbar() {
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
         <div className={`lg:hidden backdrop-blur-md px-4 py-4 space-y-4 absolute top-full left-0 w-full transition-all duration-300 ${drawerClass}`}>
+          
+          {/* Active Participant Profile Info */}
+          {participantProfile && (
+            <div className={`p-3 rounded-xl flex flex-col gap-3 transition-colors duration-300 ${drawerProfileBoxClass}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 to-[#FFA320] flex items-center justify-center text-xs font-black uppercase text-[#0B1448] shrink-0 shadow-inner">
+                  {participantProfile.fullName ? participantProfile.fullName.charAt(0) : 'P'}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-xs font-extrabold truncate ${drawerProfileTextClass}`}>{participantProfile.fullName || 'Participant Profile'}</span>
+                  <span className={`text-[10px] font-semibold truncate ${drawerProfileSubtextClass}`}>{participantProfile.phone}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100/10">
+                <Link
+                  to="/my-profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-center gap-1.5 font-extrabold text-[11px] py-2 rounded-lg transition-all text-center ${drawerProfileLinkClass}`}
+                >
+                  👤 Profile
+                </Link>
+                <Link
+                  to="/participate"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-400 to-[#FFA320] text-[#0B1448] font-extrabold text-[11px] py-2 rounded-lg transition-all text-center"
+                >
+                  ➕ Nominate
+                </Link>
+              </div>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  localStorage.removeItem('participant_phone');
+                  localStorage.removeItem('participant_profile');
+                  setParticipantProfile(null);
+                  window.dispatchEvent(new Event('participant-session-changed'));
+                  navigate('/');
+                }}
+                className={`w-full font-extrabold text-[11px] py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1 ${drawerProfileSignoutClass}`}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sign Out Profile
+              </button>
+            </div>
+          )}
+
+          {/* Active Admin User Info */}
+          {user && (
+            <div className={`p-3 rounded-xl flex flex-col gap-3 transition-colors duration-300 ${drawerProfileBoxClass}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-xs font-black uppercase text-white shrink-0">
+                  {user.profileImage ? (
+                    <img src={user.profileImage} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    user.name.charAt(0)
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-xs font-extrabold truncate ${drawerProfileTextClass}`}>{user.name}</span>
+                  <span className={`text-[10px] font-semibold truncate ${drawerProfileSubtextClass}`}>{user.email}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100/10">
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-center gap-1.5 font-extrabold text-[11px] py-2 rounded-lg transition-all text-center ${drawerProfileLinkClass}`}
+                >
+                  📊 Dashboard
+                </Link>
+                <button
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await logout();
+                    navigate("/");
+                  }}
+                  className={`flex items-center justify-center gap-1.5 font-extrabold text-[11px] py-2 rounded-lg transition-all text-center cursor-pointer ${drawerProfileSignoutClass}`}
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Logout Admin
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col gap-2">
             {navLinks.map((link) => (
               <Link

@@ -214,24 +214,24 @@ export default function MyProfile() {
             
             {/* Header Banner */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-100">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0B1448] to-[#2F6FEF] text-amber-400 font-black text-2xl flex items-center justify-center shadow-md shrink-0">
                   {primaryProfile.fullName ? primaryProfile.fullName.charAt(0) : 'C'}
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                <div className="flex flex-col items-center sm:items-start">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 mb-2">
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
                       Registered Creator Profile
                     </span>
-                    <span className="text-[10px] font-extrabold text-royal-blue bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold text-royal-blue bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
                       {submissionsList.length} {submissionsList.length === 1 ? 'Category Entry' : 'Category Entries'}
                     </span>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-black text-[#0B1448] font-display uppercase tracking-tight">
+                  <h1 className="text-xl sm:text-2xl font-black text-[#0B1448] font-display uppercase tracking-tight">
                     {primaryProfile.fullName}
                   </h1>
-                  <p className="text-xs text-slate-500 font-medium">
-                    District: <strong className="text-slate-800">{primaryProfile.district}</strong> • Phone: <strong className="text-slate-800">{primaryProfile.phone}</strong>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    District: <strong className="text-slate-800">{primaryProfile.district}</strong> <span className="mx-1 text-slate-300">•</span> Phone: <strong className="text-slate-800">{primaryProfile.phone}</strong>
                   </p>
                 </div>
               </div>
@@ -256,7 +256,7 @@ export default function MyProfile() {
 
             {/* LIST OF SUBMITTED CATEGORY NOMINATIONS */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-black text-[#0B1448] uppercase tracking-wider font-display">
                     Submitted Category Entries
@@ -265,7 +265,7 @@ export default function MyProfile() {
                     Click "View Details" on any entry to track evaluation progress & links
                   </p>
                 </div>
-                <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                <span className="text-xs font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 self-start sm:self-auto">
                   Total: {submissionsList.length}
                 </span>
               </div>
@@ -289,37 +289,41 @@ export default function MyProfile() {
                           <div className="font-extrabold text-[#0B1448] text-sm font-display">
                             {catTitle}
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500">
-                            <span>Platform: <strong className="text-royal-blue">{platformStr}</strong></span>
-                            {item.category?.tier && (
-                              <span>• Tier: <strong>{item.category.tier}</strong></span>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="text-[10px] font-extrabold text-slate-500 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-md whitespace-nowrap">
+                              Platform: <strong className="text-royal-blue uppercase">{platformStr}</strong>
+                            </span>
+                            {item.stream && (
+                              <span className="text-[10px] font-extrabold text-slate-500 bg-blue-50/50 border border-blue-100/80 text-royal-blue px-2 py-0.5 rounded-md whitespace-nowrap">
+                                Stream: <strong className="uppercase">{item.stream}</strong>
+                              </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between sm:justify-end gap-2.5 sm:gap-4 shrink-0 w-full sm:w-auto mt-3 sm:mt-0">
                         {/* Status Badge with SINGLE CLEAN DOT */}
                         {statusStr === 'PENDING' && (
-                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-red-500/10 text-red-600 border border-red-200 text-[11px] font-black uppercase">
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-red-500/10 text-red-600 border border-red-200 text-[11px] font-black uppercase justify-center w-full sm:w-auto">
                             <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
                             Pending Review
                           </span>
                         )}
                         {statusStr === 'SUBMITTED' && (
-                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-200 text-[11px] font-black uppercase">
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-amber-500/10 text-amber-800 border border-amber-200 text-[11px] font-black uppercase justify-center w-full sm:w-auto">
                             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                             Submitted
                           </span>
                         )}
                         {(statusStr === 'APPROVED' || statusStr === 'APPROVE') && (
-                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[11px] font-black uppercase">
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 text-[11px] font-black uppercase justify-center w-full sm:w-auto">
                             <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                             Approved & Shortlisted
                           </span>
                         )}
                         {statusStr === 'REJECTED' && (
-                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-500/10 text-slate-700 border border-slate-200 text-[11px] font-black uppercase">
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-slate-500/10 text-slate-700 border border-slate-200 text-[11px] font-black uppercase justify-center w-full sm:w-auto">
                             <span className="w-2 h-2 rounded-full bg-slate-600"></span>
                             Rejected
                           </span>
@@ -328,9 +332,9 @@ export default function MyProfile() {
                         {/* View Details Action Button */}
                         <button
                           onClick={() => setSelectedSubmission(item)}
-                          className="bg-[#0B1448] hover:bg-royal-blue text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                          className="bg-[#0B1448] hover:bg-royal-blue text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider w-full sm:w-auto"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <Eye className="w-4 h-4" />
                           <span>View Details</span>
                         </button>
                       </div>
